@@ -16,7 +16,7 @@ $uaeNow = new DateTime("now", new DateTimeZone("Asia/Dubai"));
 </head>
 <body class="bg-gray-100 flex items-center justify-center h-screen">
     <div class="bg-white p-8 rounded-lg shadow-lg text-center">
-        <h1 class="text-3xl font-bold text-blue-600 mb-4">Hello! 👋</h1>
+        <h1 class="text-3xl font-bold text-blue-600 mb-4">THIS IS MODIFIED THRU GIT 👋</h1>
 
         <p class="text-gray-700 text-lg mb-2">
             <strong>Server Date & Time:</strong><br>
