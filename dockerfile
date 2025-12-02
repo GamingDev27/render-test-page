@@ -1,50 +1,40 @@
-# ----------------------
-# Stage 1: Build / PHP extensions
-# ----------------------
-FROM php:8.0-fpm-alpine AS builder
+# Use Alpine-based PHP-FPM (lightest option)
+FROM php:8.2-fpm-alpine
 
-# Install build dependencies
-RUN apk add --no-cache --virtual .build-deps $PHPIZE_DEPS
-
-# Install PHP extensions
-RUN docker-php-ext-install pdo pdo_mysql
-
-# ----------------------
-# Stage 2: Final image
-# ----------------------
-FROM php:8.0-fpm-alpine
-
-# Install runtime packages only (nginx, supervisor, shadow)
-RUN apk add --no-cache nginx supervisor shadow
-
-# Create non-root user
-RUN adduser -D appuser
+# Install only Nginx and essential PHP extensions
+RUN apk add --no-cache \
+    nginx \
+    && apk add --no-cache --virtual .build-deps \
+    libpng-dev \
+    libzip-dev \
+    && docker-php-ext-install gd zip \
+    && apk del .build-deps
 
 # Set working directory
 WORKDIR /var/www/html
 
-# Copy built PHP extensions from builder
-COPY --from=builder /usr/local/lib/php/extensions /usr/local/lib/php/extensions
-COPY --from=builder /usr/local/etc/php /usr/local/etc/php
+# Copy application files
+COPY . .
 
-# Copy application source
-COPY ./src /var/www/html
-RUN chown -R appuser:appuser /var/www/html
+# Set permissions (Alpine uses 'nobody' user)
+RUN chown -R nobody:nobody /var/www/html && \
+    chmod -R 755 /var/www/html
 
-# Copy Nginx and Supervisor configs
-COPY ./nginx/default.conf /etc/nginx/conf.d/default.conf
-COPY ./supervisord.conf /etc/supervisord.conf
+# Copy Nginx configuration
+COPY nginx.conf /etc/nginx/nginx.conf
 
-# Create directories for logs and PID files
-RUN mkdir -p /var/log/supervisor /var/run/nginx /var/run/php-fpm \
-    && chown -R appuser:appuser /var/log/supervisor /var/run/php-fpm \
-    && chown -R root:root /var/run/nginx
+# Create necessary directories
+RUN mkdir -p /run/nginx /var/log/nginx
 
-# Expose port 80
-EXPOSE 80
+# Expose port
+EXPOSE 10000
 
-# Use root to allow Nginx to bind port 80
-USER root
+# Startup script
+RUN echo '#!/bin/sh' > /start.sh && \
+    echo 'set -e' >> /start.sh && \
+    echo 'sed -i "s/listen 80/listen ${PORT:-10000}/g" /etc/nginx/nginx.conf' >> /start.sh && \
+    echo 'php-fpm -D' >> /start.sh && \
+    echo 'nginx -g "daemon off;"' >> /start.sh && \
+    chmod +x /start.sh
 
-# Start Supervisor to run both Nginx and PHP-FPM
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]
+CMD ["/start.sh"]
